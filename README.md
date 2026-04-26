@@ -66,7 +66,7 @@
   cd HongTu/G1Nav2D/
   source devel/setup.bash
   # 保存地图，自定义路径及地图名称
-  rosrun map_server map_saver map:=/projected_map -f /home/nvidia/mymap
+  rosrun map_server map_saver map:=/projected_map -f /home/unitree/chenzhihong/test
   ```
 
 - 编辑地图

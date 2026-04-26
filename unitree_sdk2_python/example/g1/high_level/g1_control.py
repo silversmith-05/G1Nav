@@ -48,6 +48,8 @@ class CmdVelController:
                 rospy.logwarn("Received cmd_vel is all zeros. Robot will stop.")
             self.can_move = False
             return
+        if (vx*vx + vy*vy) < 0.01 and abs(wz) > 0.1 and abs(wz) < 0.5:
+            wz = wz/abs(wz)*0.5  # 限制旋转速度在合理范围内
 
         # 如果之前因为路径为空而不能动，也忽略
         if not self.can_move:
