@@ -38,6 +38,7 @@ local_costmap:
   plugins:
 
     - { name: inflation_layer, type: "costmap_2d::InflationLayer" }
+    - { name: obstacle_layer, type: "costmap_2d::ObstacleLayer" }
 
   global_frame: map
   robot_base_frame: base_link
@@ -51,8 +52,8 @@ local_costmap:
 
   static_map: false
   rolling_window: true
-  width: 3
-  height: 3
+  width: 6
+  height: 6
   resolution: 0.05
   obstacle_range: 6.0 #插入代价地图的障碍物应距离机器人的最大默认距离，以米为单位。它可以在每个传感器的基础上进行覆盖操作。
   
