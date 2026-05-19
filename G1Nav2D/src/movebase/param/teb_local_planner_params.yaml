@@ -41,7 +41,7 @@ TebLocalPlannerROS:
  # GoalTolerance
 
  xy_goal_tolerance: 1.0
- yaw_goal_tolerance: 0.3
+ yaw_goal_tolerance: 0.5
  free_goal_vel: False
  complete_global_plan: True
 
@@ -100,7 +100,7 @@ TebLocalPlannerROS:
  h_signature_prescaler: 0.5
  h_signature_threshold: 0.1
  obstacle_heading_threshold: 0.45
- switching_blocking_period: 5.0
+ switching_blocking_period: 10.0
  viapoints_all_candidates: True
  delete_detours_backwards: True
  max_ratio_detours_duration_best_duration: 3.0

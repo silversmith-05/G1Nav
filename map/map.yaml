@@ -1,7 +1,9 @@
-image: /home/unitree/chenzhihong/Go2Nav/map/map.pgm
-resolution: 0.050000
-# origin: [-15.750000, -46.550002, 0]
-origin: [30.668263, 38.141465, 2.78816348]
+image: map.pgm
+resolution: 0.05
+origin:
+- -63.98209521580131
+- -29.59594945208046
+- 0.0
 negate: 0
 occupied_thresh: 0.65
 free_thresh: 0.196

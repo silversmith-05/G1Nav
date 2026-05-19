@@ -40,32 +40,32 @@ NURSING_HOUSE = [2.5,-12]
 # ──────────────────────────────────────────────────────────────
 
 WORK_AREA_SEARCH_POINTS = [
-    [0.700, -1.350],
-    [1.350, -4.700],
-    [7.200, -4.700],
-    [6.550, 0.800],
-    [2.050, -2.950],
-    [-1.350, -3.900],
+    [-0.409, 1.429],
+    [0.140, 4.797],
+    [-5.348, 6.822],
+    [-6.642, 1.437],
+    [-1.122, 3.397],
+    [2.396, 3.112],
 ]
 
 NURSING_HOUSE_SEARCH_POINTS = [
-    [-0.550, -4.300],
-    [0.100, -8.300],
-    [2.750, -8.100],
-    [2.050, -10.450],
-    [1.000, -12.550],
-    [3.800, -12.350],
-    [2.150, -12.350],
+    [1.784, 3.764],
+    [2.559, 7.742],
+    [0.004, 8.471],
+    [1.474, 10.434],
+    [3.186, 12.040],
+    [0.489, 12.822],
+    [2.037, 12.251],
 ]
 
 BAR_COUNTER_SEARCH_POINTS = [
-    [1.480, -5.950],
-    [-2.150, -7.700],
-    [-0.400, -9.950],
-    [-1.550, -11.000],
-    [-3.400, -10.350],
-    [-4.950, -8.000],
-    [-3.400, -5.850],
+    [0.451, 6.014],
+    [4.462, 6.400],
+    [3.599, 9.117],
+    [5.041, 9.704],
+    [6.552, 8.453],
+    [7.193, 5.712],
+    [4.995, 4.232],
 ]
 
 
@@ -293,16 +293,16 @@ def get_current_position_and_orientation(use_euler: bool = True) -> dict:
 @mcp.tool()
 def detect_nearest_goal(
     caption: str,
-    stop_distance_m: float = 0.6,
-    box_threshold: float = 0.2,
-    text_threshold: float = 0.2,
+    stop_distance_m: float = 1.0,
+    box_threshold: float = 0.4,
+    text_threshold: float = 0.4,
     server: str = GROUNDINGDINO_SERVER,
 ) -> dict:
-    """根据远程传入的 caption 检测目标，并返回最近检测结果对应的导航 goal
+    """根据远程传入的 caption 检测最近目标，并直接发送导航 goal
 
     Args:
         caption: GroundingDINO 检测提示词，例如 "person. bottle. chair"
-        stop_distance_m: 导航目标距离物体预留距离，单位米，默认 0.6
+        stop_distance_m: 导航目标距离物体预留距离，单位米，默认 1.0
         box_threshold: GroundingDINO box threshold
         text_threshold: GroundingDINO text threshold
         server: GroundingDINO API server
@@ -351,13 +351,15 @@ def detect_nearest_goal(
             nearest["camera_point"],
             stop_distance_m=stop_distance_m,
         )
+        navigation = send_goal(goal["x"], goal["y"], goal["yaw"])
 
         return {
-            "success": True,
-            "message": "已找到最近目标并生成导航 goal",
+            "success": navigation.get("success", False),
+            "message": "已找到最近目标并发送导航 goal",
             "caption": caption,
             "nearest": nearest,
             "goal": goal,
+            "navigation": navigation,
             "candidates": candidates,
             "camera": camera_info,
             "inference_time_ms": raw_result.get("inference_time_ms", None),
@@ -419,12 +421,31 @@ def send_goal(x, y, yaw):
         rospy.logwarn("导航超时，取消目标")
 
         client.cancel_goal()
+        return {
+            "success": False,
+            "message": "导航超时，已取消目标",
+            "target": {
+                "x": x,
+                "y": y,
+                "yaw": yaw,
+            },
+        }
 
     else:
 
         state = client.get_state()
 
         rospy.loginfo("导航结束，状态码: %d", state)
+        return {
+            "success": state == 3,
+            "message": "导航结束",
+            "state": state,
+            "target": {
+                "x": x,
+                "y": y,
+                "yaw": yaw,
+            },
+        }
 
 @mcp.tool()
 def go_to_area(area: str, yaw: float = 0.0) -> dict:
