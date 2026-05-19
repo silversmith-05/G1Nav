@@ -5,9 +5,11 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /tf1
+        - /tf1/Axes2
         - /Local1
         - /Global1
         - /Global1/global_path1
+        - /PointCloud22
       Splitter Ratio: 0.5
     Tree Height: 601
   - Class: rviz/Selection
@@ -158,12 +160,12 @@ Visualization Manager:
           Class: rviz/Map
           Color Scheme: map
           Draw Behind: false
-          Enabled: false
+          Enabled: true
           Name: Map
           Topic: /map_2d
           Unreliable: false
           Use Timestamp: false
-          Value: false
+          Value: true
         - Alpha: 1
           Buffer Length: 1
           Class: rviz/Path
@@ -366,7 +368,7 @@ Visualization Manager:
       Size (Pixels): 3
       Size (m): 0.05000000074505806
       Style: Flat Squares
-      Topic: /local_cloud
+      Topic: /scan_input_cloud
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -419,7 +421,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 14.403169631958008
+      Distance: 9.824789047241211
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -435,9 +437,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.9497966170310974
+      Pitch: 0.29479676485061646
       Target Frame: <Fixed Frame>
-      Yaw: 4.786113262176514
+      Yaw: 1.7911126613616943
     Saved: ~
 Window Geometry:
   Displays:
