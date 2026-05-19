@@ -23,7 +23,7 @@ from tf.transformations import quaternion_from_euler
 
 NETWORK_INTERFACE = "eth0"
 
-mcp = FastMCP(name="GO2", stateless_http=True, host="0.0.0.0", port=8000)
+mcp = FastMCP(name="GO2", stateless_http=True, host="0.0.0.0", port=8002)
 
 WORK_AREA = [5.1,-2.450]
 BAR_COUNTER = [-2,-8.5]
