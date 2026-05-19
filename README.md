@@ -52,7 +52,7 @@
 
 - 安装依赖包
   ``` bash
-  sudo apt install ros-noetic-teb-local-planner ros-noetic-global-planner ros-noetic-costmap-server
+  sudo apt install ros-noetic-teb-local-planner ros-noetic-global-planner ros-noetic-costmap-2d ros-noetic-map-server
   ```
 
 - 建图及保存
@@ -66,7 +66,7 @@
   cd HongTu/G1Nav2D/
   source devel/setup.bash
   # 保存地图，自定义路径及地图名称
-  rosrun map_server map_saver map:=/projected_map -f /home/unitree/chenzhihong/test
+  rosrun map_server map_saver map:=/projected_map -f /home/unitree/chenzhihong/Go2Nav/map/map
   ```
 
 - 编辑地图
