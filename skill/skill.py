@@ -15,6 +15,7 @@ import rospy
 from geometry_msgs.msg import PoseStamped
 import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from sensor_msgs.msg import CameraInfo, Image
 from tf.transformations import quaternion_from_euler
 
 # ──────────────────────────────────────────────────────────────
@@ -22,6 +23,10 @@ from tf.transformations import quaternion_from_euler
 # ──────────────────────────────────────────────────────────────
 
 NETWORK_INTERFACE = "eth0"
+GROUNDINGDINO_SERVER = "http://pku4090.local:7579"
+COLOR_IMAGE_TOPIC = "/camera/color/image_raw"
+DEPTH_IMAGE_TOPIC = "/camera/aligned_depth_to_color/image_raw"
+CAMERA_INFO_TOPIC = "/camera/color/camera_info"
 
 mcp = FastMCP(name="GO2", stateless_http=True, host="0.0.0.0", port=8002)
 
@@ -75,6 +80,174 @@ OPEN_SEARCH_POINTS = {
 def init_ros1():
     rospy.init_node("go2_skill_node", anonymous=True)
 
+
+def ros_image_to_bgr(msg):
+    if msg.encoding not in ("bgr8", "rgb8"):
+        raise RuntimeError(f"Unsupported color image encoding: {msg.encoding}")
+
+    channels = 3
+    row_width = msg.width * channels
+    data = np.frombuffer(msg.data, dtype=np.uint8)
+    image = data.reshape((msg.height, msg.step))[:, :row_width]
+    image = image.reshape((msg.height, msg.width, channels)).copy()
+
+    if msg.encoding == "rgb8":
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+    return image
+
+
+def ros_image_to_depth_m(msg):
+    if msg.encoding == "32FC1":
+        dtype = np.float32
+        scale = 1.0
+    elif msg.encoding == "16UC1":
+        dtype = np.uint16
+        scale = 0.001
+    else:
+        raise RuntimeError(f"Unsupported depth image encoding: {msg.encoding}")
+
+    item_size = np.dtype(dtype).itemsize
+    row_width = msg.width * item_size
+    data = np.frombuffer(msg.data, dtype=np.uint8)
+    rows = data.reshape((msg.height, msg.step))[:, :row_width]
+    depth = rows.reshape((msg.height, msg.width, item_size)).copy().view(dtype)
+    return depth.reshape((msg.height, msg.width)).astype(np.float32) * scale
+
+
+def capture_frame_from_ros_topics(
+    color_topic=COLOR_IMAGE_TOPIC,
+    depth_topic=DEPTH_IMAGE_TOPIC,
+    camera_info_topic=CAMERA_INFO_TOPIC,
+    timeout=3.0,
+):
+    color_msg = rospy.wait_for_message(color_topic, Image, timeout=timeout)
+    depth_msg = rospy.wait_for_message(depth_topic, Image, timeout=timeout)
+    info_msg = rospy.wait_for_message(camera_info_topic, CameraInfo, timeout=timeout)
+
+    return ros_image_to_bgr(color_msg), ros_image_to_depth_m(depth_msg), info_msg, {
+        "color_topic": color_topic,
+        "depth_topic": depth_topic,
+        "camera_info_topic": camera_info_topic,
+        "frame_id": color_msg.header.frame_id,
+        "width": color_msg.width,
+        "height": color_msg.height,
+        "color_stamp": color_msg.header.stamp.to_sec(),
+        "depth_stamp": depth_msg.header.stamp.to_sec(),
+    }
+
+
+def call_groundingdino_api(
+    image_bgr,
+    caption,
+    server=GROUNDINGDINO_SERVER,
+    box_threshold=0.2,
+    text_threshold=0.2,
+):
+    ok, jpg = cv2.imencode(".jpg", image_bgr)
+    if not ok:
+        raise RuntimeError("Failed to encode frame as jpg")
+
+    files = {
+        "image": ("frame.jpg", jpg.tobytes(), "image/jpeg")
+    }
+    data = {
+        "caption": caption,
+        "box_threshold": str(box_threshold),
+        "text_threshold": str(text_threshold),
+    }
+
+    resp = requests.post(f"{server}/detect", files=files, data=data, timeout=10)
+    resp.raise_for_status()
+
+    result = resp.json()
+    return result.get("detections", []), result
+
+
+def depth_at_pixel(depth_image, cx, cy, window=5):
+    distance_m = float(depth_image[cy, cx])
+    if np.isfinite(distance_m) and distance_m > 0:
+        return distance_m
+
+    radius = window // 2
+    y1 = max(0, cy - radius)
+    y2 = min(depth_image.shape[0], cy + radius + 1)
+    x1 = max(0, cx - radius)
+    x2 = min(depth_image.shape[1], cx + radius + 1)
+    patch = depth_image[y1:y2, x1:x2]
+    valid = patch[np.isfinite(patch) & (patch > 0)]
+    if valid.size == 0:
+        return 0.0
+    return float(np.median(valid))
+
+
+def detection_to_camera_point(det, depth_image, camera_info):
+    bbox = det.get("bbox", None)
+    if bbox is None or len(bbox) != 4:
+        return None
+
+    height, width = depth_image.shape[:2]
+    x1, y1, x2, y2 = bbox
+    x1 = int(max(0, min(width - 1, x1)))
+    y1 = int(max(0, min(height - 1, y1)))
+    x2 = int(max(0, min(width - 1, x2)))
+    y2 = int(max(0, min(height - 1, y2)))
+
+    cx = int((x1 + x2) / 2)
+    cy = int((y1 + y2) / 2)
+    distance_m = depth_at_pixel(depth_image, cx, cy)
+    if distance_m <= 0:
+        return None
+
+    fx = camera_info.K[0]
+    fy = camera_info.K[4]
+    ppx = camera_info.K[2]
+    ppy = camera_info.K[5]
+    point_x = (cx - ppx) / fx * distance_m
+    point_y = (cy - ppy) / fy * distance_m
+    point_z = distance_m
+
+    return {
+        "bbox": [x1, y1, x2, y2],
+        "center_pixel": {
+            "x": cx,
+            "y": cy,
+        },
+        "distance_m": distance_m,
+        "camera_point": {
+            "x": point_x,
+            "y": point_y,
+            "z": point_z,
+        },
+    }
+
+
+def camera_point_to_map_goal(camera_point, stop_distance_m=0.6):
+    pose = get_current_position_and_orientation(use_euler=True)
+    robot_x = pose["position"]["x"]
+    robot_y = pose["position"]["y"]
+    yaw = pose["orientation"]["yaw"]
+
+    # RealSense optical frame: x right, y down, z forward.
+    forward_m = camera_point["z"]
+    left_m = -camera_point["x"]
+
+    goal_forward_m = max(0.0, forward_m - stop_distance_m)
+    goal_left_m = left_m
+
+    goal_x = robot_x + goal_forward_m * math.cos(yaw) - goal_left_m * math.sin(yaw)
+    goal_y = robot_y + goal_forward_m * math.sin(yaw) + goal_left_m * math.cos(yaw)
+    goal_yaw = math.atan2(goal_y - robot_y, goal_x - robot_x)
+
+    return {
+        "frame": "map",
+        "x": goal_x,
+        "y": goal_y,
+        "yaw": goal_yaw,
+        "stop_distance_m": stop_distance_m,
+        "robot_pose": pose,
+    }
+
 @mcp.tool()
 def get_current_position_and_orientation(use_euler: bool = True) -> dict:
     """获取当前位置和姿态
@@ -115,6 +288,86 @@ def get_current_position_and_orientation(use_euler: bool = True) -> dict:
         }
 
     return result
+
+
+@mcp.tool()
+def detect_nearest_goal(
+    caption: str,
+    stop_distance_m: float = 0.6,
+    box_threshold: float = 0.2,
+    text_threshold: float = 0.2,
+    server: str = GROUNDINGDINO_SERVER,
+) -> dict:
+    """根据远程传入的 caption 检测目标，并返回最近检测结果对应的导航 goal
+
+    Args:
+        caption: GroundingDINO 检测提示词，例如 "person. bottle. chair"
+        stop_distance_m: 导航目标距离物体预留距离，单位米，默认 0.6
+        box_threshold: GroundingDINO box threshold
+        text_threshold: GroundingDINO text threshold
+        server: GroundingDINO API server
+    """
+    if not caption or not caption.strip():
+        return {
+            "success": False,
+            "message": "caption 不能为空",
+        }
+
+    try:
+        color_image, depth_image, camera_info_msg, camera_info = capture_frame_from_ros_topics()
+        detections, raw_result = call_groundingdino_api(
+            color_image,
+            caption.strip(),
+            server=server,
+            box_threshold=box_threshold,
+            text_threshold=text_threshold,
+        )
+
+        candidates = []
+        for det in detections:
+            point_info = detection_to_camera_point(det, depth_image, camera_info_msg)
+            if point_info is None:
+                continue
+
+            candidate = {
+                "phrase": det.get("phrase", ""),
+                "confidence": det.get("confidence", 0.0),
+                **point_info,
+            }
+            candidates.append(candidate)
+
+        if not candidates:
+            return {
+                "success": False,
+                "message": "没有检测到带有效深度的目标",
+                "caption": caption,
+                "detections_count": len(detections),
+                "camera": camera_info,
+                "inference_time_ms": raw_result.get("inference_time_ms", None),
+            }
+
+        nearest = min(candidates, key=lambda item: item["distance_m"])
+        goal = camera_point_to_map_goal(
+            nearest["camera_point"],
+            stop_distance_m=stop_distance_m,
+        )
+
+        return {
+            "success": True,
+            "message": "已找到最近目标并生成导航 goal",
+            "caption": caption,
+            "nearest": nearest,
+            "goal": goal,
+            "candidates": candidates,
+            "camera": camera_info,
+            "inference_time_ms": raw_result.get("inference_time_ms", None),
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e),
+            "caption": caption,
+        }
 
 @mcp.tool()
 def send_goal(x, y, yaw):
