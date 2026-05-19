@@ -24,7 +24,7 @@ TebLocalPlannerROS:
  max_vel_y: 0.0
  max_vel_theta: 2.0
  acc_lim_x: 1.5
- acc_lim_theta: 1.5
+ acc_lim_theta: 2.0
  min_turning_radius: 0.0 # diff-drive robot (can turn on place!)
 
  footprint_model: # types: "point", "circular", "two_circles", "line", "polygon"
@@ -40,8 +40,8 @@ TebLocalPlannerROS:
 
  # GoalTolerance
 
- xy_goal_tolerance: 0.2
- yaw_goal_tolerance: 0.1
+ xy_goal_tolerance: 1.0
+ yaw_goal_tolerance: 0.3
  free_goal_vel: False
  complete_global_plan: True
 
@@ -71,7 +71,7 @@ TebLocalPlannerROS:
  weight_max_vel_x: 2
  weight_max_vel_theta: 1
  weight_acc_lim_x: 1
- weight_acc_lim_theta: 1
+ weight_acc_lim_theta: 1.5
  weight_kinematics_nh: 1000
  weight_kinematics_forward_drive: 1
  weight_kinematics_turning_radius: 1
@@ -90,7 +90,7 @@ TebLocalPlannerROS:
  enable_multithreading: True
  max_number_classes: 4
  selection_cost_hysteresis: 1.0
- selection_prefer_initial_plan: 0.9
+ selection_prefer_initial_plan: 0.98
  selection_obst_cost_scale: 100.0
  selection_alternative_time_cost: False
 
@@ -100,7 +100,7 @@ TebLocalPlannerROS:
  h_signature_prescaler: 0.5
  h_signature_threshold: 0.1
  obstacle_heading_threshold: 0.45
- switching_blocking_period: 0.0
+ switching_blocking_period: 5.0
  viapoints_all_candidates: True
  delete_detours_backwards: True
  max_ratio_detours_duration_best_duration: 3.0

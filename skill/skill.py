@@ -29,6 +29,48 @@ WORK_AREA = [5.1,-2.450]
 BAR_COUNTER = [-2,-8.5]
 NURSING_HOUSE = [2.5,-12]
 
+# ──────────────────────────────────────────────────────────────
+# Open search points
+# 开放式搜索巡逻点，均为 map 坐标系下的 [x, y]
+# ──────────────────────────────────────────────────────────────
+
+WORK_AREA_SEARCH_POINTS = [
+    [0.700, -1.350],
+    [1.350, -4.700],
+    [7.200, -4.700],
+    [6.550, 0.800],
+    [2.050, -2.950],
+    [-1.350, -3.900],
+]
+
+NURSING_HOUSE_SEARCH_POINTS = [
+    [-0.550, -4.300],
+    [0.100, -8.300],
+    [2.750, -8.100],
+    [2.050, -10.450],
+    [1.000, -12.550],
+    [3.800, -12.350],
+    [2.150, -12.350],
+]
+
+BAR_COUNTER_SEARCH_POINTS = [
+    [1.480, -5.950],
+    [-2.150, -7.700],
+    [-0.400, -9.950],
+    [-1.550, -11.000],
+    [-3.400, -10.350],
+    [-4.950, -8.000],
+    [-3.400, -5.850],
+]
+
+
+OPEN_SEARCH_POINTS = {
+    "work_area": WORK_AREA_SEARCH_POINTS,
+    "nursing_house": NURSING_HOUSE_SEARCH_POINTS,
+    "bar_counter": BAR_COUNTER_SEARCH_POINTS,
+}
+
+
 
 def init_ros1():
     rospy.init_node("go2_skill_node", anonymous=True)
@@ -169,6 +211,46 @@ def go_to_area(area: str, yaw: float = 0.0) -> dict:
             "y": y,
             "yaw": yaw,
         },
+    }
+
+@mcp.tool()
+def open_search(area: str, yaw: float = 0.0) -> dict:
+    """开放式搜索指定区域，按预设搜索点依次导航
+
+    Args:
+        area: 区域名称，可选：
+            - work_area
+            - bar_counter
+            - nursing_house
+        yaw: 每个搜索点到达后的朝向，单位为弧度，默认 0.0
+    """
+    if area not in OPEN_SEARCH_POINTS:
+        return {
+            "success": False,
+            "message": f"未知搜索区域: {area}",
+            "available_areas": list(OPEN_SEARCH_POINTS.keys()),
+        }
+
+    points = OPEN_SEARCH_POINTS[area]
+
+    for idx, point in enumerate(points):
+        x, y = point
+        rospy.loginfo(
+            "开放搜索 %s: 前往第 %d/%d 个点 x=%.3f, y=%.3f, yaw=%.3f",
+            area,
+            idx + 1,
+            len(points),
+            x,
+            y,
+            yaw,
+        )
+        send_goal(x, y, yaw)
+
+    return {
+        "success": True,
+        "message": f"已完成 {area} 开放式搜索任务",
+        "area": area,
+        "points": points,
     }
 
 # ──────────────────────────────────────────────────────────────
