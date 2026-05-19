@@ -33,7 +33,7 @@
 
 <node pkg="pointcloud_to_laserscan" type="pointcloud_to_laserscan_node" 
          name="pointcloud_to_laserscan">
- <remap from="cloud_in" to="/base_link_cloud"/> 
+ <remap from="cloud_in" to="/scan_input_cloud"/> 
  
  <param name="transform_tolerance" value="0.01" />
  <param name="min_height" value="-1" />

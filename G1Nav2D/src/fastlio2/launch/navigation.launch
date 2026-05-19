@@ -19,6 +19,7 @@
     <include file="$(find pointcloud_to_laserscan)/launch/point_to_scan.launch" />
 
     <include file="$(find tool)/launch/body2any_pointcloud.launch">
+        <arg name="target_frame" value="local"/>
     </include>
 
 
